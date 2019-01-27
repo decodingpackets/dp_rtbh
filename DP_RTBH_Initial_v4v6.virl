@@ -1,0 +1,1850 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<topology xmlns="http://www.cisco.com/VIRL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" schemaVersion="0.95" xsi:schemaLocation="http://www.cisco.com/VIRL https://raw.github.com/CiscoVIRL/schema/v0.95/virl.xsd">
+    <node name="SRX3" type="SIMPLE" subtype="vSRX" location="429,411">
+        <extensions>
+            <entry key="config" type="String">system {
+    host-name SRX3;
+    root-authentication {
+        encrypted-password "$1$1rOZo6p/$wP34/aG.IsaRL9jeoP8b5/"; ## SECRET-DATA
+    }
+    login {
+        password {
+            minimum-length 6;
+            minimum-changes 1;
+        }
+    }
+    services {
+        ssh;
+        web-management {
+            http {
+                interface ge-0/0/0.0;
+            }
+        }
+    }
+    syslog {
+        file messages {
+            any any;
+        }
+    }
+    license {
+        autoupdate {
+            url https://ae1.juniper.net/junos/key_retrieval;
+        }
+    }
+}
+interfaces {
+    ge-0/0/0 {
+        unit 0 {
+            family inet;
+        }
+    }
+    ge-0/0/1 {
+        unit 0 {
+            family inet {
+                address 20.3.7.3/24;
+            }
+            family inet6 {
+                address 2001:db8:3:7::3/64;
+            }
+        }
+    }
+    ge-0/0/2 {
+        unit 0 {
+            family inet {
+                address 10.3.5.3/24;
+            }
+            family inet6;
+            family mpls;
+        }
+    }
+    lo0 {
+        unit 0 {
+            family inet {
+                address 3.3.3.3/32;
+            }
+        }
+    }
+}
+routing-options {
+    rib inet6.0 {
+        static {
+            route 100::1/128 discard;
+        }
+    }
+    static {
+        route 192.0.2.1/32 discard;
+    }
+    autonomous-system 1;
+}
+protocols {
+    mpls {
+        ipv6-tunneling;
+        interface all;
+        interface ge-0/0/2.0;
+    }
+    bgp {
+        group GP_IBGP {
+            local-address 3.3.3.3;
+            peer-as 1;
+            neighbor 6.6.6.6 {
+                family inet {
+                    unicast;
+                }
+                family inet6 {
+                    labeled-unicast {
+                        explicit-null;
+                    }
+                }
+            }
+        }
+        group GP_EBGP {
+            neighbor 20.3.7.7 {
+                family inet {
+                    unicast;
+                }
+                peer-as 7;
+            }
+            neighbor 2001:db8:3:7::7 {
+                family inet6 {
+                    unicast;
+                }
+                peer-as 7;
+            }
+        }
+    }
+    ospf {
+        area 0.0.0.0 {
+            interface ge-0/0/2.0;
+            interface lo0.0;
+        }
+    }
+    ldp {
+        interface ge-0/0/1.0 {
+            disable;
+        }
+        interface all;
+    }
+}
+policy-options {
+    policy-statement PS_IBGP_V4_IN {
+        from {
+            community COMM_RTBH;
+            route-filter 0.0.0.0/0 prefix-length-range /24-/32;
+        }
+        then {
+            next-hop discard;
+        }
+    }
+    policy-statement PS_IBGP_V6_IN {
+        from {
+            family inet6;
+            community COMM_RTBH;
+            route-filter ::/0 prefix-length-range /64-/128;
+        }
+        then {
+            next-hop discard;
+        }
+    }
+    community COMM_RTBH members 1:666;
+}
+security {
+    forwarding-options {
+        family {
+            inet6 {
+                mode packet-based;
+            }
+            mpls {
+                mode packet-based;
+            }
+        }
+    }
+}</entry>
+        </extensions>
+        <interface id="0" name="ge-0/0/1"/>
+        <interface id="1" name="ge-0/0/2"/>
+    </node>
+    <node name="XR1" type="SIMPLE" subtype="IOS XRv" location="429,152">
+        <extensions>
+            <entry key="config">!! IOS XR Configuration 6.1.3
+!! Last configuration change at Sat Jan 26 13:13:41 2019 by cisco
+!
+hostname XR1
+line console
+ exec-timeout 0 0
+!
+interface Loopback0
+ ipv4 address 1.1.1.1 255.255.255.255
+!
+interface MgmtEth0/0/CPU0/0
+ ipv4 address dhcp
+!
+interface GigabitEthernet0/0/0/0
+ ipv4 address 20.1.7.1 255.255.255.0
+ ipv6 address 2001:db8:1:7::1/64
+!
+interface GigabitEthernet0/0/0/1
+ ipv4 address 10.1.5.1 255.255.255.0
+!
+route-policy RP_PASS
+  pass
+end-policy
+!
+route-policy RP_IBGP_V4_IN
+  if destination in (0.0.0.0/0 ge 24 le 32) and community matches-any (1:666) then
+    set next-hop discard
+  else
+    pass
+  endif
+end-policy
+!
+route-policy RP_IBGP_V6_IN
+  if destination in (::/0 ge 64 le 128) and community matches-any (1:666) then
+    set next-hop discard
+  else
+    pass
+  endif
+end-policy
+!
+router static
+ address-family ipv4 unicast
+  192.0.2.1/32 Null0
+ !
+ address-family ipv6 unicast
+  100::1/128 Null0
+ !
+!
+router ospf 1
+ mpls ldp auto-config
+ area 0
+  interface Loopback0
+  !
+  interface GigabitEthernet0/0/0/1
+  !
+ !
+!
+router bgp 1
+ address-family ipv4 unicast
+ !
+ address-family ipv6 unicast
+  allocate-label all
+ !
+ neighbor 6.6.6.6
+  remote-as 1
+  update-source Loopback0
+  address-family ipv4 unicast
+  !
+  address-family ipv6 labeled-unicast
+  !
+ !
+ neighbor 20.1.7.7
+  remote-as 7
+  address-family ipv4 unicast
+   route-policy RP_PASS in
+   route-policy RP_PASS out
+  !
+ !
+ neighbor 2001:db8:1:7::7
+  remote-as 7
+  address-family ipv6 unicast
+   route-policy RP_PASS in
+   route-policy RP_PASS out
+  !
+ !
+!
+mpls ldp
+!
+end
+
+</entry>
+        </extensions>
+        <interface id="0" name="GigabitEthernet0/0/0/0"/>
+        <interface id="1" name="GigabitEthernet0/0/0/1"/>
+    </node>
+    <node name="R2" type="SIMPLE" subtype="CSR1000v" location="429,280">
+        <extensions>
+            <entry key="config">!
+! Last configuration change at 13:30:01 UTC Sat Jan 26 2019
+!
+version 16.9
+service config
+service timestamps debug datetime msec
+service timestamps log datetime msec
+platform qfp utilization monitor load 80
+no platform punt-keepalive disable-kernel-core
+platform console serial
+!
+hostname R2
+!
+boot-start-marker
+boot-end-marker
+!
+!
+vrf definition mgmt
+ !
+ address-family ipv4
+ exit-address-family
+!
+!
+no aaa new-model
+!
+!
+!
+!
+!
+!
+!
+no ip domain lookup
+ip admission watch-list expiry-time 0
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+subscriber templating
+! 
+! 
+! 
+! 
+!
+ipv6 unicast-routing
+multilink bundle-name authenticated
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+license udi pid CSR1000V sn 93PO7A6J4DJ
+no license smart enable
+diagnostic bootup level minimal
+!
+spanning-tree extend system-id
+!
+!
+!
+!
+redundancy
+!
+!
+!
+!
+!
+!
+! 
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+! 
+! 
+!
+!
+interface Loopback0
+ ip address 2.2.2.2 255.255.255.255
+!
+interface Tunnel26
+ no ip address
+ ipv6 address 2001:DB8:2:6::2/64
+ tunnel source Loopback0
+ tunnel destination 6.6.6.6
+!
+interface GigabitEthernet1
+ vrf forwarding mgmt
+ ip address dhcp
+ negotiation auto
+ no mop enabled
+ no mop sysid
+!
+interface GigabitEthernet2
+ ip address 20.2.7.2 255.255.255.0
+ negotiation auto
+ ipv6 address 2001:DB8:2:7::2/64
+ no mop enabled
+ no mop sysid
+!
+interface GigabitEthernet3
+ ip address 10.2.5.2 255.255.255.0
+ negotiation auto
+ no mop enabled
+ no mop sysid
+!
+router ospf 1
+ network 0.0.0.0 255.255.255.255 area 0
+ mpls ldp autoconfig
+!
+router bgp 1
+ bgp log-neighbor-changes
+ no bgp default ipv4-unicast
+ neighbor 6.6.6.6 remote-as 1
+ neighbor 6.6.6.6 update-source Loopback0
+ neighbor 20.2.7.7 remote-as 7
+ neighbor 2001:DB8:2:6::6 remote-as 1
+ neighbor 2001:DB8:2:7::7 remote-as 7
+ !
+ address-family ipv4
+  neighbor 6.6.6.6 activate
+  neighbor 6.6.6.6 send-community both
+  neighbor 20.2.7.7 activate
+ exit-address-family
+ !
+ address-family ipv6
+  neighbor 2001:DB8:2:6::6 activate
+  neighbor 2001:DB8:2:6::6 send-community both
+  neighbor 2001:DB8:2:7::7 activate
+ exit-address-family
+!
+ip forward-protocol nd
+no ip http server
+ip http secure-server
+ip http client source-interface GigabitEthernet1
+ip route 192.0.2.1 255.255.255.255 Null0
+!
+ip community-list standard CL_RTBH permit 66202
+!
+!
+ip prefix-list PL_RTBH seq 5 permit 0.0.0.0/0 ge 24
+ipv6 route 100::1/128 Null0
+!
+!
+ipv6 prefix-list PL_RTBH seq 5 permit ::/0 ge 64
+!
+route-map RM_IBGP_V4_IN permit 10 
+ match ip address prefix-list PL_RTBH
+ match community CL_RTBH
+ set ip next-hop 192.0.2.1
+!
+route-map RM_IBGP_V4_IN permit 1000 
+!
+route-map RM_IBGP_V6_IN permit 10 
+ match community CL_RTBH
+ match ipv6 address prefix-list PL_RTBH
+ set ipv6 next-hop 100::1
+!
+!
+!
+control-plane
+!
+!
+!
+!
+!
+!
+line con 0
+ exec-timeout 0 0
+ privilege level 15
+ logging synchronous
+ stopbits 1
+line vty 0 4
+ login
+!
+!
+!
+!
+!
+!
+end
+
+</entry>
+        </extensions>
+        <interface id="0" name="GigabitEthernet2"/>
+        <interface id="1" name="GigabitEthernet3"/>
+    </node>
+    <node name="RR6" type="SIMPLE" subtype="CSR1000v" location="607,140">
+        <extensions>
+            <entry key="config">!
+! Last configuration change at 13:30:01 UTC Sat Jan 26 2019
+!
+version 16.9
+service config
+service timestamps debug datetime msec
+service timestamps log datetime msec
+platform qfp utilization monitor load 80
+no platform punt-keepalive disable-kernel-core
+platform console serial
+!
+hostname RR6
+!
+boot-start-marker
+boot-end-marker
+!
+!
+vrf definition mgmt
+ !
+ address-family ipv4
+ exit-address-family
+!
+!
+no aaa new-model
+!
+!
+!
+!
+!
+!
+!
+no ip domain lookup
+ip admission watch-list expiry-time 0
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+subscriber templating
+! 
+! 
+! 
+! 
+!
+ipv6 unicast-routing
+multilink bundle-name authenticated
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+license udi pid CSR1000V sn 993P0JQKIWM
+no license smart enable
+diagnostic bootup level minimal
+!
+spanning-tree extend system-id
+!
+!
+!
+!
+redundancy
+!
+!
+!
+!
+!
+!
+! 
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+! 
+! 
+!
+!
+interface Loopback0
+ ip address 6.6.6.6 255.255.255.255
+ ipv6 enable
+!
+interface Tunnel26
+ no ip address
+ ipv6 address 2001:DB8:2:6::6/64
+ tunnel source Loopback0
+ tunnel destination 2.2.2.2
+!
+interface GigabitEthernet1
+ vrf forwarding mgmt
+ ip address dhcp
+ negotiation auto
+ no mop enabled
+ no mop sysid
+!
+interface GigabitEthernet2
+ no ip address
+ shutdown
+ negotiation auto
+ no mop enabled
+ no mop sysid
+!
+interface GigabitEthernet3
+ ip address 10.5.6.6 255.255.255.0
+ negotiation auto
+ no mop enabled
+ no mop sysid
+!
+router ospf 1
+ network 0.0.0.0 255.255.255.255 area 0
+ mpls ldp autoconfig
+!
+router bgp 1
+ template peer-policy IBGP_RR_CLIENTS
+  route-reflector-client
+  send-community both
+ exit-peer-policy
+ !
+ template peer-policy IBGP_RR_CLIENTS_LU
+  route-reflector-client
+  send-community both
+  send-label
+ exit-peer-policy
+ !
+ template peer-session IBGP_PEERS
+  remote-as 1
+  update-source Loopback0
+ exit-peer-session
+ !
+ bgp log-neighbor-changes
+ no bgp default ipv4-unicast
+ neighbor 1.1.1.1 inherit peer-session IBGP_PEERS
+ neighbor 2.2.2.2 inherit peer-session IBGP_PEERS
+ neighbor 3.3.3.3 inherit peer-session IBGP_PEERS
+ neighbor 4.4.4.4 inherit peer-session IBGP_PEERS
+ neighbor 2001:DB8:2:6::2 remote-as 1
+ !
+ address-family ipv4
+  neighbor 1.1.1.1 activate
+  neighbor 1.1.1.1 inherit peer-policy IBGP_RR_CLIENTS
+  neighbor 2.2.2.2 activate
+  neighbor 2.2.2.2 inherit peer-policy IBGP_RR_CLIENTS
+  neighbor 3.3.3.3 activate
+  neighbor 3.3.3.3 inherit peer-policy IBGP_RR_CLIENTS
+  neighbor 4.4.4.4 activate
+  neighbor 4.4.4.4 inherit peer-policy IBGP_RR_CLIENTS
+ exit-address-family
+ !
+ address-family ipv6
+  neighbor 1.1.1.1 activate
+  neighbor 1.1.1.1 inherit peer-policy IBGP_RR_CLIENTS_LU
+  neighbor 3.3.3.3 activate
+  neighbor 3.3.3.3 inherit peer-policy IBGP_RR_CLIENTS_LU
+  neighbor 4.4.4.4 activate
+  neighbor 4.4.4.4 inherit peer-policy IBGP_RR_CLIENTS_LU
+  neighbor 2001:DB8:2:6::2 activate
+  neighbor 2001:DB8:2:6::2 inherit peer-policy IBGP_RR_CLIENTS_LU
+ exit-address-family
+!
+ip forward-protocol nd
+no ip http server
+ip http secure-server
+ip http client source-interface GigabitEthernet1
+ip route 192.0.2.1 255.255.255.255 Null0
+!
+!
+ipv6 route 100::1/128 Null0
+!
+!
+route-map RM_RTBH_V4 permit 10 
+ match tag 666
+ set ip next-hop 192.0.2.1
+ set local-preference 200
+ set origin igp
+ set community no-export
+!
+route-map RM_RTBH_V4 deny 20 
+!
+route-map RM_RTBH_V6 permit 10 
+ match tag 666
+ set local-preference 200
+ set origin igp
+ set community no-export
+ set ipv6 next-hop 100::1
+!
+route-map RM_RTBH_V6 deny 20 
+!
+mpls ldp router-id Loopback0 force
+!
+!
+control-plane
+!
+!
+!
+!
+!
+!
+line con 0
+ exec-timeout 0 0
+ privilege level 15
+ logging synchronous
+ stopbits 1
+line vty 0 4
+ login
+!
+!
+!
+!
+!
+!
+end
+
+</entry>
+        </extensions>
+        <interface id="0" name="GigabitEthernet2"/>
+        <interface id="1" name="GigabitEthernet3"/>
+    </node>
+    <node name="Good_Guy_200" type="SIMPLE" subtype="IOSv" location="143,191">
+        <extensions>
+            <entry key="config">!
+! Last configuration change at 12:58:02 UTC Sat Jan 26 2019
+!
+version 15.7
+service timestamps debug datetime msec
+service timestamps log datetime msec
+no service password-encryption
+!
+hostname Good_Guy_200
+!
+boot-start-marker
+boot-end-marker
+!
+!
+vrf definition mgmt
+ !
+ address-family ipv4
+ exit-address-family
+!
+!
+no aaa new-model
+!
+!
+!
+mmi polling-interval 60
+no mmi auto-configure
+no mmi pvc
+mmi snmp-timeout 180
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+no ip domain lookup
+ip cef
+ipv6 unicast-routing
+ipv6 cef
+!
+multilink bundle-name authenticated
+!
+!
+!
+!
+!
+redundancy
+!
+!
+! 
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+interface Loopback0
+ ip address 200.200.200.200 255.255.255.255
+ ipv6 address 2001:200::200/128
+!
+interface GigabitEthernet0/0
+ vrf forwarding mgmt
+ ip address dhcp
+ duplex auto
+ speed auto
+ media-type rj45
+!
+interface GigabitEthernet0/1
+ ip address 20.7.200.200 255.255.255.0
+ duplex auto
+ speed auto
+ media-type rj45
+ ipv6 address 2001:DB8:7:200::200/64
+!
+router bgp 200
+ bgp log-neighbor-changes
+ no bgp default ipv4-unicast
+ neighbor 20.7.200.7 remote-as 7
+ neighbor 2001:DB8:7:200::7 remote-as 7
+ !
+ address-family ipv4
+  network 200.200.200.200 mask 255.255.255.255
+  neighbor 20.7.200.7 activate
+ exit-address-family
+ !
+ address-family ipv6
+  network 2001:200::200/128
+  neighbor 2001:DB8:7:200::7 activate
+ exit-address-family
+!
+ip forward-protocol nd
+!
+!
+no ip http server
+no ip http secure-server
+!
+ipv6 ioam timestamp
+!
+!
+!
+control-plane
+!
+banner exec `
+**************************************************************************
+* IOSv is strictly limited to use for evaluation, demonstration and IOS  *
+* education. IOSv is provided as-is and is not supported by Cisco's      *
+* Technical Advisory Center. Any use or disclosure, in whole or in part, *
+* of the IOSv Software or Documentation to any third party for any       *
+* purposes is expressly prohibited except as otherwise authorized by     *
+* Cisco in writing.                                                      *
+**************************************************************************`
+banner incoming `
+**************************************************************************
+* IOSv is strictly limited to use for evaluation, demonstration and IOS  *
+* education. IOSv is provided as-is and is not supported by Cisco's      *
+* Technical Advisory Center. Any use or disclosure, in whole or in part, *
+* of the IOSv Software or Documentation to any third party for any       *
+* purposes is expressly prohibited except as otherwise authorized by     *
+* Cisco in writing.                                                      *
+**************************************************************************`
+banner login `
+**************************************************************************
+* IOSv is strictly limited to use for evaluation, demonstration and IOS  *
+* education. IOSv is provided as-is and is not supported by Cisco's      *
+* Technical Advisory Center. Any use or disclosure, in whole or in part, *
+* of the IOSv Software or Documentation to any third party for any       *
+* purposes is expressly prohibited except as otherwise authorized by     *
+* Cisco in writing.                                                      *
+**************************************************************************`
+!
+line con 0
+ exec-timeout 0 0
+ privilege level 15
+ logging synchronous
+line aux 0
+line vty 0 4
+ login
+ transport input none
+!
+no scheduler allocate
+!
+end
+
+</entry>
+        </extensions>
+        <interface id="0" name="GigabitEthernet0/1"/>
+    </node>
+    <node name="CE8" type="SIMPLE" subtype="IOSv" location="1004,280">
+        <extensions>
+            <entry key="config">!
+! Last configuration change at 12:53:03 UTC Sat Jan 26 2019
+!
+version 15.7
+service timestamps debug datetime msec
+service timestamps log datetime msec
+no service password-encryption
+!
+hostname CE8
+!
+boot-start-marker
+boot-end-marker
+!
+!
+vrf definition mgmt
+ !
+ address-family ipv4
+ exit-address-family
+!
+!
+no aaa new-model
+!
+!
+!
+mmi polling-interval 60
+no mmi auto-configure
+no mmi pvc
+mmi snmp-timeout 180
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+no ip domain lookup
+ip cef
+ipv6 unicast-routing
+ipv6 cef
+!
+multilink bundle-name authenticated
+!
+!
+!
+!
+!
+redundancy
+!
+!
+! 
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+interface Loopback0
+ ip address 8.8.8.8 255.255.255.255
+ ipv6 address 2001:8::8/128
+!
+interface Loopback1
+ ip address 8.8.8.9 255.255.255.255
+ ipv6 address 2001:8::9/128
+!
+interface Loopback2
+ ip address 8.8.8.10 255.255.255.255
+ ipv6 address 2001:8::10/128
+!
+interface GigabitEthernet0/0
+ vrf forwarding mgmt
+ ip address dhcp
+ duplex auto
+ speed auto
+ media-type rj45
+!
+interface GigabitEthernet0/1
+ ip address 30.4.8.8 255.255.255.0
+ duplex auto
+ speed auto
+ media-type rj45
+ ipv6 address 2001:DB8:4:8::8/64
+!
+router bgp 8
+ bgp log-neighbor-changes
+ no bgp default ipv4-unicast
+ neighbor 30.4.8.4 remote-as 1
+ neighbor 2001:DB8:4:8::4 remote-as 1
+ !
+ address-family ipv4
+  network 8.8.8.0 mask 255.255.255.0
+  neighbor 30.4.8.4 activate
+  neighbor 30.4.8.4 send-community both
+ exit-address-family
+ !
+ address-family ipv6
+  network 2001:8::/64
+  neighbor 2001:DB8:4:8::4 activate
+  neighbor 2001:DB8:4:8::4 send-community both
+ exit-address-family
+!
+ip forward-protocol nd
+!
+!
+no ip http server
+no ip http secure-server
+ip route 8.8.8.0 255.255.255.0 Null0
+!
+ipv6 route 2001:8::/64 Null0
+ipv6 ioam timestamp
+!
+route-map RM_RTBH_CE permit 10
+ set community 66202
+!
+route-map RM_RTBH_CE deny 20
+!
+!
+!
+control-plane
+!
+banner exec `
+**************************************************************************
+* IOSv is strictly limited to use for evaluation, demonstration and IOS  *
+* education. IOSv is provided as-is and is not supported by Cisco's      *
+* Technical Advisory Center. Any use or disclosure, in whole or in part, *
+* of the IOSv Software or Documentation to any third party for any       *
+* purposes is expressly prohibited except as otherwise authorized by     *
+* Cisco in writing.                                                      *
+**************************************************************************`
+banner incoming `
+**************************************************************************
+* IOSv is strictly limited to use for evaluation, demonstration and IOS  *
+* education. IOSv is provided as-is and is not supported by Cisco's      *
+* Technical Advisory Center. Any use or disclosure, in whole or in part, *
+* of the IOSv Software or Documentation to any third party for any       *
+* purposes is expressly prohibited except as otherwise authorized by     *
+* Cisco in writing.                                                      *
+**************************************************************************`
+banner login `
+**************************************************************************
+* IOSv is strictly limited to use for evaluation, demonstration and IOS  *
+* education. IOSv is provided as-is and is not supported by Cisco's      *
+* Technical Advisory Center. Any use or disclosure, in whole or in part, *
+* of the IOSv Software or Documentation to any third party for any       *
+* purposes is expressly prohibited except as otherwise authorized by     *
+* Cisco in writing.                                                      *
+**************************************************************************`
+!
+line con 0
+ exec-timeout 0 0
+ privilege level 15
+ logging synchronous
+line aux 0
+line vty 0 4
+ login
+ transport input none
+!
+no scheduler allocate
+!
+end
+
+</entry>
+        </extensions>
+        <interface id="0" name="GigabitEthernet0/1"/>
+    </node>
+    <node name="PE4" type="SIMPLE" subtype="CSR1000v" location="818,280">
+        <extensions>
+            <entry key="config">!
+! Last configuration change at 13:30:01 UTC Sat Jan 26 2019
+!
+version 16.9
+service config
+service timestamps debug datetime msec
+service timestamps log datetime msec
+platform qfp utilization monitor load 80
+no platform punt-keepalive disable-kernel-core
+platform console serial
+!
+hostname PE4
+!
+boot-start-marker
+boot-end-marker
+!
+!
+vrf definition mgmt
+ !
+ address-family ipv4
+ exit-address-family
+!
+!
+no aaa new-model
+!
+!
+!
+!
+!
+!
+!
+no ip domain lookup
+ip admission watch-list expiry-time 0
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+subscriber templating
+! 
+! 
+! 
+! 
+!
+ipv6 unicast-routing
+multilink bundle-name authenticated
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+license udi pid CSR1000V sn 98B9TYGA29O
+no license smart enable
+diagnostic bootup level minimal
+!
+spanning-tree extend system-id
+!
+!
+!
+!
+redundancy
+!
+!
+!
+!
+!
+!
+! 
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+! 
+! 
+!
+!
+interface Loopback0
+ ip address 4.4.4.4 255.255.255.255
+!
+interface GigabitEthernet1
+ vrf forwarding mgmt
+ ip address dhcp
+ negotiation auto
+ no mop enabled
+ no mop sysid
+!
+interface GigabitEthernet2
+ ip address 10.4.5.4 255.255.255.0
+ negotiation auto
+ no mop enabled
+ no mop sysid
+!
+interface GigabitEthernet3
+ no ip address
+ shutdown
+ negotiation auto
+ no mop enabled
+ no mop sysid
+!
+interface GigabitEthernet4
+ ip address 30.4.8.4 255.255.255.0
+ negotiation auto
+ ipv6 address 2001:DB8:4:8::4/64
+ no mop enabled
+ no mop sysid
+!
+router ospf 1
+ network 0.0.0.0 255.255.255.255 area 0
+ mpls ldp autoconfig
+!
+router bgp 1
+ bgp log-neighbor-changes
+ no bgp default ipv4-unicast
+ neighbor 6.6.6.6 remote-as 1
+ neighbor 6.6.6.6 update-source Loopback0
+ neighbor 30.4.8.8 remote-as 8
+ neighbor 2001:DB8:4:8::8 remote-as 8
+ !
+ address-family ipv4
+  neighbor 6.6.6.6 activate
+  neighbor 6.6.6.6 send-community both
+  neighbor 6.6.6.6 next-hop-self
+  neighbor 30.4.8.8 activate
+  neighbor 30.4.8.8 send-community both
+  neighbor 30.4.8.8 default-originate
+  neighbor 30.4.8.8 route-map RM_CE8_V4_IN in
+ exit-address-family
+ !
+ address-family ipv6
+  neighbor 6.6.6.6 activate
+  neighbor 6.6.6.6 send-community both
+  neighbor 6.6.6.6 next-hop-self
+  neighbor 6.6.6.6 send-label
+  neighbor 2001:DB8:4:8::8 activate
+  neighbor 2001:DB8:4:8::8 route-map RM_CE8_V6_IN in
+ exit-address-family
+!
+ip forward-protocol nd
+no ip http server
+ip http secure-server
+ip http client source-interface GigabitEthernet1
+!
+ip community-list standard CL_RTBH permit 66202
+!
+!
+ip prefix-list PL_CE8 seq 5 permit 8.8.0.0/16 le 24
+!
+ip prefix-list PL_RTBH seq 5 permit 8.8.8.0/24 le 32
+!
+!
+ipv6 prefix-list PL_CE8 seq 5 permit 2001:8::/32 le 64
+!
+ipv6 prefix-list PL_RTBH seq 5 permit ::/0 ge 64
+!
+route-map RM_CE8_V6_IN permit 10 
+ match community CL_RTBH
+ match ipv6 address prefix-list PL_RTBH
+ set local-preference 200
+ set community no-export additive
+!
+route-map RM_CE8_V6_IN permit 20 
+ match ipv6 address prefix-list PL_CE8
+!
+route-map RM_CE8_V4_IN permit 10 
+ match ip address prefix-list PL_RTBH
+ match community CL_RTBH
+ set local-preference 200
+ set community no-export additive
+!
+route-map RM_CE8_V4_IN permit 20 
+ match ip address prefix-list PL_CE8
+!
+!
+!
+control-plane
+!
+!
+!
+!
+!
+!
+line con 0
+ exec-timeout 0 0
+ privilege level 15
+ logging synchronous
+ stopbits 1
+line vty 0 4
+ login
+!
+!
+!
+!
+!
+!
+end
+
+</entry>
+        </extensions>
+        <interface id="0" name="GigabitEthernet2"/>
+        <interface id="1" name="GigabitEthernet3"/>
+        <interface id="2" name="GigabitEthernet4"/>
+    </node>
+    <node name="Bad_Guy_201" type="SIMPLE" subtype="IOSv" location="145,373">
+        <extensions>
+            <entry key="config">!
+! Last configuration change at 12:54:54 UTC Sat Jan 26 2019
+!
+version 15.7
+service timestamps debug datetime msec
+service timestamps log datetime msec
+no service password-encryption
+!
+hostname Bad_Guy_201
+!
+boot-start-marker
+boot-end-marker
+!
+!
+vrf definition mgmt
+ !
+ address-family ipv4
+ exit-address-family
+!
+!
+no aaa new-model
+!
+!
+!
+mmi polling-interval 60
+no mmi auto-configure
+no mmi pvc
+mmi snmp-timeout 180
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+no ip domain lookup
+ip cef
+ipv6 unicast-routing
+ipv6 cef
+!
+multilink bundle-name authenticated
+!
+!
+!
+!
+!
+redundancy
+!
+!
+! 
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+interface Loopback0
+ ip address 201.201.201.201 255.255.255.255
+ ipv6 address 2001:201::201/128
+!
+interface GigabitEthernet0/0
+ vrf forwarding mgmt
+ ip address dhcp
+ duplex auto
+ speed auto
+ media-type rj45
+!
+interface GigabitEthernet0/1
+ ip address 20.7.201.201 255.255.255.0
+ duplex auto
+ speed auto
+ media-type rj45
+ ipv6 address 2001:DB8:7:201::201/64
+!
+router bgp 201
+ bgp log-neighbor-changes
+ no bgp default ipv4-unicast
+ neighbor 20.7.201.7 remote-as 7
+ neighbor 2001:DB8:7:201::7 remote-as 7
+ !
+ address-family ipv4
+  network 201.201.201.201 mask 255.255.255.255
+  neighbor 20.7.201.7 activate
+ exit-address-family
+ !
+ address-family ipv6
+  network 2001:201::201/128
+  neighbor 2001:DB8:7:201::7 activate
+ exit-address-family
+!
+ip forward-protocol nd
+!
+!
+no ip http server
+no ip http secure-server
+!
+ipv6 ioam timestamp
+!
+!
+!
+control-plane
+!
+banner exec `
+**************************************************************************
+* IOSv is strictly limited to use for evaluation, demonstration and IOS  *
+* education. IOSv is provided as-is and is not supported by Cisco's      *
+* Technical Advisory Center. Any use or disclosure, in whole or in part, *
+* of the IOSv Software or Documentation to any third party for any       *
+* purposes is expressly prohibited except as otherwise authorized by     *
+* Cisco in writing.                                                      *
+**************************************************************************`
+banner incoming `
+**************************************************************************
+* IOSv is strictly limited to use for evaluation, demonstration and IOS  *
+* education. IOSv is provided as-is and is not supported by Cisco's      *
+* Technical Advisory Center. Any use or disclosure, in whole or in part, *
+* of the IOSv Software or Documentation to any third party for any       *
+* purposes is expressly prohibited except as otherwise authorized by     *
+* Cisco in writing.                                                      *
+**************************************************************************`
+banner login `
+**************************************************************************
+* IOSv is strictly limited to use for evaluation, demonstration and IOS  *
+* education. IOSv is provided as-is and is not supported by Cisco's      *
+* Technical Advisory Center. Any use or disclosure, in whole or in part, *
+* of the IOSv Software or Documentation to any third party for any       *
+* purposes is expressly prohibited except as otherwise authorized by     *
+* Cisco in writing.                                                      *
+**************************************************************************`
+!
+line con 0
+ exec-timeout 0 0
+ privilege level 15
+ logging synchronous
+line aux 0
+line vty 0 4
+ login
+ transport input none
+!
+no scheduler allocate
+!
+end
+
+</entry>
+        </extensions>
+        <interface id="0" name="GigabitEthernet0/1"/>
+    </node>
+    <node name="Inet7" type="SIMPLE" subtype="IOSv" location="289,280">
+        <extensions>
+            <entry key="config">!
+! Last configuration change at 12:38:26 UTC Sat Jan 26 2019
+!
+version 15.7
+service timestamps debug datetime msec
+service timestamps log datetime msec
+no service password-encryption
+!
+hostname Inet7
+!
+boot-start-marker
+boot-end-marker
+!
+!
+vrf definition mgmt
+ !
+ address-family ipv4
+ exit-address-family
+!
+!
+no aaa new-model
+!
+!
+!
+mmi polling-interval 60
+no mmi auto-configure
+no mmi pvc
+mmi snmp-timeout 180
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+no ip domain lookup
+ip cef
+ipv6 unicast-routing
+ipv6 cef
+!
+multilink bundle-name authenticated
+!
+!
+!
+!
+!
+redundancy
+!
+!
+! 
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+interface GigabitEthernet0/0
+ vrf forwarding mgmt
+ ip address dhcp
+ duplex auto
+ speed auto
+ media-type rj45
+!
+interface GigabitEthernet0/1
+ ip address 20.1.7.7 255.255.255.0
+ duplex auto
+ speed auto
+ media-type rj45
+ ipv6 address 2001:DB8:1:7::7/64
+!
+interface GigabitEthernet0/2
+ ip address 20.2.7.7 255.255.255.0
+ duplex auto
+ speed auto
+ media-type rj45
+ ipv6 address 2001:DB8:2:7::7/64
+!
+interface GigabitEthernet0/3
+ no ip address
+ shutdown
+ duplex auto
+ speed auto
+ media-type rj45
+!
+interface GigabitEthernet0/4
+ ip address 20.3.7.7 255.255.255.0
+ duplex auto
+ speed auto
+ media-type rj45
+ ipv6 address 2001:DB8:3:7::7/64
+!
+interface GigabitEthernet0/5
+ ip address 20.7.201.7 255.255.255.0
+ duplex auto
+ speed auto
+ media-type rj45
+ ipv6 address 2001:DB8:7:201::7/64
+!
+interface GigabitEthernet0/6
+ ip address 20.7.200.7 255.255.255.0
+ duplex auto
+ speed auto
+ media-type rj45
+ ipv6 address 2001:DB8:7:200::7/64
+!
+router bgp 7
+ bgp log-neighbor-changes
+ no bgp default ipv4-unicast
+ neighbor 20.1.7.1 remote-as 1
+ neighbor 20.2.7.2 remote-as 1
+ neighbor 20.3.7.3 remote-as 1
+ neighbor 20.7.200.200 remote-as 200
+ neighbor 20.7.201.201 remote-as 201
+ neighbor 2001:DB8:1:7::1 remote-as 1
+ neighbor 2001:DB8:2:7::2 remote-as 1
+ neighbor 2001:DB8:3:7::3 remote-as 1
+ neighbor 2001:DB8:7:200::200 remote-as 200
+ neighbor 2001:DB8:7:201::201 remote-as 201
+ !
+ address-family ipv4
+  neighbor 20.1.7.1 activate
+  neighbor 20.2.7.2 activate
+  neighbor 20.3.7.3 activate
+  neighbor 20.7.200.200 activate
+  neighbor 20.7.201.201 activate
+  maximum-paths 3
+ exit-address-family
+ !
+ address-family ipv6
+  maximum-paths 3
+  neighbor 2001:DB8:1:7::1 activate
+  neighbor 2001:DB8:2:7::2 activate
+  neighbor 2001:DB8:3:7::3 activate
+  neighbor 2001:DB8:7:200::200 activate
+  neighbor 2001:DB8:7:201::201 activate
+ exit-address-family
+!
+ip forward-protocol nd
+!
+!
+no ip http server
+no ip http secure-server
+!
+ipv6 ioam timestamp
+!
+!
+!
+control-plane
+!
+banner exec `
+**************************************************************************
+* IOSv is strictly limited to use for evaluation, demonstration and IOS  *
+* education. IOSv is provided as-is and is not supported by Cisco's      *
+* Technical Advisory Center. Any use or disclosure, in whole or in part, *
+* of the IOSv Software or Documentation to any third party for any       *
+* purposes is expressly prohibited except as otherwise authorized by     *
+* Cisco in writing.                                                      *
+**************************************************************************`
+banner incoming `
+**************************************************************************
+* IOSv is strictly limited to use for evaluation, demonstration and IOS  *
+* education. IOSv is provided as-is and is not supported by Cisco's      *
+* Technical Advisory Center. Any use or disclosure, in whole or in part, *
+* of the IOSv Software or Documentation to any third party for any       *
+* purposes is expressly prohibited except as otherwise authorized by     *
+* Cisco in writing.                                                      *
+**************************************************************************`
+banner login `
+**************************************************************************
+* IOSv is strictly limited to use for evaluation, demonstration and IOS  *
+* education. IOSv is provided as-is and is not supported by Cisco's      *
+* Technical Advisory Center. Any use or disclosure, in whole or in part, *
+* of the IOSv Software or Documentation to any third party for any       *
+* purposes is expressly prohibited except as otherwise authorized by     *
+* Cisco in writing.                                                      *
+**************************************************************************`
+!
+line con 0
+ exec-timeout 0 0
+ privilege level 15
+ logging synchronous
+line aux 0
+line vty 0 4
+ login
+ transport input none
+!
+no scheduler allocate
+!
+end
+
+</entry>
+        </extensions>
+        <interface id="0" name="GigabitEthernet0/1"/>
+        <interface id="1" name="GigabitEthernet0/2"/>
+        <interface id="2" name="GigabitEthernet0/3"/>
+        <interface id="3" name="GigabitEthernet0/4"/>
+        <interface id="4" name="GigabitEthernet0/5"/>
+        <interface id="5" name="GigabitEthernet0/6"/>
+    </node>
+    <node name="P5" type="SIMPLE" subtype="CSR1000v" location="607,280">
+        <extensions>
+            <entry key="config">!
+! Last configuration change at 13:30:01 UTC Sat Jan 26 2019
+!
+version 16.9
+service config
+service timestamps debug datetime msec
+service timestamps log datetime msec
+platform qfp utilization monitor load 80
+no platform punt-keepalive disable-kernel-core
+platform console serial
+!
+hostname P5
+!
+boot-start-marker
+boot-end-marker
+!
+!
+vrf definition mgmt
+ !
+ address-family ipv4
+ exit-address-family
+!
+!
+no aaa new-model
+!
+!
+!
+!
+!
+!
+!
+no ip domain lookup
+ip admission watch-list expiry-time 0
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+subscriber templating
+! 
+! 
+! 
+! 
+!
+multilink bundle-name authenticated
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+license udi pid CSR1000V sn 966RTWB1LWX
+no license smart enable
+diagnostic bootup level minimal
+!
+spanning-tree extend system-id
+!
+!
+!
+!
+redundancy
+!
+!
+!
+!
+!
+!
+! 
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+!
+! 
+! 
+!
+!
+interface Loopback0
+ ip address 5.5.5.5 255.255.255.255
+!
+interface GigabitEthernet1
+ vrf forwarding mgmt
+ ip address dhcp
+ negotiation auto
+ no mop enabled
+ no mop sysid
+!
+interface GigabitEthernet2
+ ip address 10.5.6.5 255.255.255.0
+ negotiation auto
+ no mop enabled
+ no mop sysid
+!
+interface GigabitEthernet3
+ ip address 10.1.5.5 255.255.255.0
+ negotiation auto
+ no mop enabled
+ no mop sysid
+!
+interface GigabitEthernet4
+ ip address 10.2.5.5 255.255.255.0
+ negotiation auto
+ no mop enabled
+ no mop sysid
+!
+interface GigabitEthernet5
+ ip address 10.3.5.5 255.255.255.0
+ negotiation auto
+ no mop enabled
+ no mop sysid
+!
+interface GigabitEthernet6
+ ip address 10.4.5.5 255.255.255.0
+ negotiation auto
+ no mop enabled
+ no mop sysid
+!
+router ospf 1
+ network 0.0.0.0 255.255.255.255 area 0
+ mpls ldp autoconfig
+!
+ip forward-protocol nd
+no ip http server
+ip http secure-server
+ip http client source-interface GigabitEthernet1
+!
+!
+!
+!
+!
+!
+control-plane
+!
+!
+!
+!
+!
+!
+line con 0
+ exec-timeout 0 0
+ privilege level 15
+ logging synchronous
+ stopbits 1
+line vty 0 4
+ login
+!
+!
+!
+!
+!
+!
+end
+
+</entry>
+        </extensions>
+        <interface id="0" name="GigabitEthernet2"/>
+        <interface id="1" name="GigabitEthernet3"/>
+        <interface id="2" name="GigabitEthernet4"/>
+        <interface id="3" name="GigabitEthernet5"/>
+        <interface id="4" name="GigabitEthernet6"/>
+    </node>
+    <annotations>
+        <rect x="366" y="106" radius="10" width="535" height="388" fill="FDF6E3" stroke-width="3"/>
+        <text x="381" y="441">U:root PW:Juniper</text>
+        <text x="575" y="468" font-size="18">AS 1 (SP)</text>
+        <rect x="961" y="108" radius="10" width="84" height="388" fill="FDF6E3" stroke-width="3"/>
+        <text x="985" y="468" font-size="18">AS 8</text>
+        <rect x="248" y="106" radius="10" width="84" height="388" fill="FDF6E3" stroke-width="3"/>
+        <text x="272" y="466" font-size="18">AS 7</text>
+        <rect x="93" y="142" radius="10" width="97" height="88" fill="FDF6E3" stroke-width="3"/>
+        <text x="117" y="152" font-size="18">AS 200</text>
+        <rect x="96" y="333" radius="10" width="91" height="88" fill="FDF6E3" stroke-width="3"/>
+        <text x="107" y="397" font-size="18">AS 201</text>
+    </annotations>
+    <connection dst="/virl:topology/virl:node[2]/virl:interface[1]" src="/virl:topology/virl:node[9]/virl:interface[1]"/>
+    <connection dst="/virl:topology/virl:node[3]/virl:interface[1]" src="/virl:topology/virl:node[9]/virl:interface[2]"/>
+    <connection dst="/virl:topology/virl:node[1]/virl:interface[1]" src="/virl:topology/virl:node[9]/virl:interface[4]"/>
+    <connection dst="/virl:topology/virl:node[8]/virl:interface[1]" src="/virl:topology/virl:node[9]/virl:interface[5]"/>
+    <connection dst="/virl:topology/virl:node[5]/virl:interface[1]" src="/virl:topology/virl:node[9]/virl:interface[6]"/>
+    <connection dst="/virl:topology/virl:node[6]/virl:interface[1]" src="/virl:topology/virl:node[7]/virl:interface[3]"/>
+    <connection dst="/virl:topology/virl:node[10]/virl:interface[1]" src="/virl:topology/virl:node[4]/virl:interface[2]"/>
+    <connection dst="/virl:topology/virl:node[2]/virl:interface[2]" src="/virl:topology/virl:node[10]/virl:interface[2]"/>
+    <connection dst="/virl:topology/virl:node[3]/virl:interface[2]" src="/virl:topology/virl:node[10]/virl:interface[3]"/>
+    <connection dst="/virl:topology/virl:node[1]/virl:interface[2]" src="/virl:topology/virl:node[10]/virl:interface[4]"/>
+    <connection dst="/virl:topology/virl:node[7]/virl:interface[1]" src="/virl:topology/virl:node[10]/virl:interface[5]"/>
+</topology>
